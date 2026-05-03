@@ -8,10 +8,28 @@ import {
 function Historial() {
   const [cotizaciones, setCotizaciones] = useState([]);
   const [pedidos, setPedidos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [generandoPedido, setGenerandoPedido] = useState(false);
+
+  const cargarDatos = async () => {
+    try {
+      setCargando(true);
+
+      const cotizacionesFirebase = await obtenerCotizaciones();
+      const pedidosFirebase = await obtenerPedidos();
+
+      setCotizaciones(cotizacionesFirebase);
+      setPedidos(pedidosFirebase);
+    } catch (error) {
+      console.error("Error al cargar historial:", error);
+      alert("No se pudo cargar el historial desde Firebase.");
+    } finally {
+      setCargando(false);
+    }
+  };
 
   useEffect(() => {
-    setCotizaciones(obtenerCotizaciones());
-    setPedidos(obtenerPedidos());
+    cargarDatos();
   }, []);
 
   const formatearFecha = (fecha) => {
@@ -33,28 +51,37 @@ function Historial() {
     return pedidos.some((pedido) => pedido.cotizacionId === cotizacionId);
   };
 
-  const generarPedido = (cotizacion) => {
+  const generarPedido = async (cotizacion) => {
     if (yaTienePedido(cotizacion.id)) {
       alert("Esta cotización ya fue convertida en pedido.");
       return;
     }
 
-    const nuevoPedido = guardarPedido({
-      cotizacionId: cotizacion.id,
-      clienteNombre: cotizacion.clienteNombre,
-      clienteTelefono: cotizacion.clienteTelefono,
-      clienteCorreo: cotizacion.clienteCorreo,
-      materialNombre: cotizacion.materialNombre,
-      medidas: `${cotizacion.largo} x ${cotizacion.ancho} x ${cotizacion.alto}`,
-      cantidad: cotizacion.cantidad,
-      acabados: cotizacion.acabados,
-      total: cotizacion.total,
-      observaciones: "Pedido generado desde el historial de cotizaciones.",
-    });
+    try {
+      setGenerandoPedido(true);
 
-    setPedidos(obtenerPedidos());
+      await guardarPedido({
+        cotizacionId: cotizacion.id,
+        clienteNombre: cotizacion.clienteNombre,
+        clienteTelefono: cotizacion.clienteTelefono,
+        clienteCorreo: cotizacion.clienteCorreo,
+        materialNombre: cotizacion.materialNombre,
+        medidas: `${cotizacion.largo} x ${cotizacion.ancho} x ${cotizacion.alto}`,
+        cantidad: cotizacion.cantidad,
+        acabados: cotizacion.acabados,
+        total: cotizacion.total,
+        observaciones: "Pedido generado desde el historial de cotizaciones.",
+      });
 
-    alert(`Pedido generado correctamente para ${nuevoPedido.clienteNombre}.`);
+      await cargarDatos();
+
+      alert(`Pedido generado correctamente para ${cotizacion.clienteNombre}.`);
+    } catch (error) {
+      console.error("Error al generar pedido:", error);
+      alert("No se pudo generar el pedido en Firebase.");
+    } finally {
+      setGenerandoPedido(false);
+    }
   };
 
   return (
@@ -69,7 +96,9 @@ function Historial() {
       <div className="content-card">
         <h3>Cotizaciones registradas</h3>
 
-        {cotizaciones.length === 0 ? (
+        {cargando ? (
+          <p className="empty-text">Cargando cotizaciones desde Firebase...</p>
+        ) : cotizaciones.length === 0 ? (
           <p className="empty-text">
             Todavía no hay cotizaciones guardadas. Primero genera una nueva
             cotización.
@@ -115,10 +144,14 @@ function Historial() {
                       <button
                         className="table-button"
                         onClick={() => generarPedido(cotizacion)}
-                        disabled={yaTienePedido(cotizacion.id)}
+                        disabled={
+                          yaTienePedido(cotizacion.id) || generandoPedido
+                        }
                       >
                         {yaTienePedido(cotizacion.id)
                           ? "Pedido generado"
+                          : generandoPedido
+                          ? "Generando..."
                           : "Generar pedido"}
                       </button>
                     </td>

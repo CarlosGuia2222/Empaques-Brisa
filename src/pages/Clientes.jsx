@@ -3,6 +3,9 @@ import { guardarCliente, obtenerClientes } from "../services/storageService";
 
 function Clientes() {
   const [clientes, setClientes] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+
   const [formulario, setFormulario] = useState({
     nombre: "",
     telefono: "",
@@ -10,8 +13,21 @@ function Clientes() {
     direccion: "",
   });
 
+  const cargarClientes = async () => {
+    try {
+      setCargando(true);
+      const clientesFirebase = await obtenerClientes();
+      setClientes(clientesFirebase);
+    } catch (error) {
+      console.error("Error al cargar clientes:", error);
+      alert("No se pudieron cargar los clientes desde Firebase.");
+    } finally {
+      setCargando(false);
+    }
+  };
+
   useEffect(() => {
-    setClientes(obtenerClientes());
+    cargarClientes();
   }, []);
 
   const manejarCambio = (e) => {
@@ -23,7 +39,7 @@ function Clientes() {
     });
   };
 
-  const registrarCliente = (e) => {
+  const registrarCliente = async (e) => {
     e.preventDefault();
 
     if (
@@ -36,17 +52,26 @@ function Clientes() {
       return;
     }
 
-    guardarCliente(formulario);
-    setClientes(obtenerClientes());
+    try {
+      setGuardando(true);
 
-    setFormulario({
-      nombre: "",
-      telefono: "",
-      correo: "",
-      direccion: "",
-    });
+      await guardarCliente(formulario);
+      await cargarClientes();
 
-    alert("Cliente registrado correctamente.");
+      setFormulario({
+        nombre: "",
+        telefono: "",
+        correo: "",
+        direccion: "",
+      });
+
+      alert("Cliente registrado correctamente en Firebase.");
+    } catch (error) {
+      console.error("Error al guardar cliente:", error);
+      alert("No se pudo guardar el cliente en Firebase.");
+    } finally {
+      setGuardando(false);
+    }
   };
 
   return (
@@ -106,8 +131,8 @@ function Clientes() {
             />
           </div>
 
-          <button className="primary-button" type="submit">
-            Guardar cliente
+          <button className="primary-button" type="submit" disabled={guardando}>
+            {guardando ? "Guardando..." : "Guardar cliente"}
           </button>
         </form>
       </div>
@@ -115,7 +140,9 @@ function Clientes() {
       <div className="content-card">
         <h3>Clientes registrados</h3>
 
-        {clientes.length === 0 ? (
+        {cargando ? (
+          <p className="empty-text">Cargando clientes desde Firebase...</p>
+        ) : clientes.length === 0 ? (
           <p className="empty-text">
             Todavía no hay clientes registrados.
           </p>

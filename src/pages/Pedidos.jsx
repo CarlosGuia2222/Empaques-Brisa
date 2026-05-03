@@ -6,11 +6,26 @@ import {
 
 function Pedidos() {
   const [pedidos, setPedidos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [actualizando, setActualizando] = useState(false);
 
   const estadosPedido = ["Recibido", "En producción", "Enviado", "Entregado"];
 
+  const cargarPedidos = async () => {
+    try {
+      setCargando(true);
+      const pedidosFirebase = await obtenerPedidos();
+      setPedidos(pedidosFirebase);
+    } catch (error) {
+      console.error("Error al cargar pedidos:", error);
+      alert("No se pudieron cargar los pedidos desde Firebase.");
+    } finally {
+      setCargando(false);
+    }
+  };
+
   useEffect(() => {
-    setPedidos(obtenerPedidos());
+    cargarPedidos();
   }, []);
 
   const formatearFecha = (fecha) => {
@@ -28,9 +43,20 @@ function Pedidos() {
     });
   };
 
-  const cambiarEstado = (idPedido, nuevoEstado) => {
-    actualizarEstadoPedido(idPedido, nuevoEstado);
-    setPedidos(obtenerPedidos());
+  const cambiarEstado = async (idPedido, nuevoEstado) => {
+    try {
+      setActualizando(true);
+
+      await actualizarEstadoPedido(idPedido, nuevoEstado);
+      await cargarPedidos();
+
+      alert("Estado del pedido actualizado correctamente en Firebase.");
+    } catch (error) {
+      console.error("Error al actualizar pedido:", error);
+      alert("No se pudo actualizar el estado del pedido en Firebase.");
+    } finally {
+      setActualizando(false);
+    }
   };
 
   const obtenerClaseEstado = (estado) => {
@@ -58,7 +84,12 @@ function Pedidos() {
         </p>
       </div>
 
-      {pedidos.length === 0 ? (
+      {cargando ? (
+        <div className="content-card">
+          <h3>Cargando pedidos</h3>
+          <p className="empty-text">Cargando pedidos desde Firebase...</p>
+        </div>
+      ) : pedidos.length === 0 ? (
         <div className="content-card">
           <h3>Sin pedidos registrados</h3>
           <p className="empty-text">
@@ -122,6 +153,7 @@ function Pedidos() {
                 <select
                   className="status-select"
                   value={pedido.estadoPedido}
+                  disabled={actualizando}
                   onChange={(e) => cambiarEstado(pedido.id, e.target.value)}
                 >
                   {estadosPedido.map((estado) => (

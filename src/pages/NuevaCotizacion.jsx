@@ -7,6 +7,8 @@ import {
 
 function NuevaCotizacion() {
   const [clientes, setClientes] = useState([]);
+  const [cargandoClientes, setCargandoClientes] = useState(true);
+  const [guardando, setGuardando] = useState(false);
   const [cotizacionGuardada, setCotizacionGuardada] = useState(null);
 
   const [formulario, setFormulario] = useState({
@@ -19,8 +21,21 @@ function NuevaCotizacion() {
     acabados: "",
   });
 
+  const cargarClientes = async () => {
+    try {
+      setCargandoClientes(true);
+      const clientesFirebase = await obtenerClientes();
+      setClientes(clientesFirebase);
+    } catch (error) {
+      console.error("Error al cargar clientes:", error);
+      alert("No se pudieron cargar los clientes desde Firebase.");
+    } finally {
+      setCargandoClientes(false);
+    }
+  };
+
   useEffect(() => {
-    setClientes(obtenerClientes());
+    cargarClientes();
   }, []);
 
   const manejarCambio = (e) => {
@@ -57,7 +72,7 @@ function NuevaCotizacion() {
     return precioBase + costoAcabados;
   };
 
-  const guardarNuevaCotizacion = (e) => {
+  const guardarNuevaCotizacion = async (e) => {
     e.preventDefault();
 
     const cliente = obtenerClienteSeleccionado();
@@ -76,37 +91,46 @@ function NuevaCotizacion() {
       return;
     }
 
-    const nuevaCotizacion = guardarCotizacion({
-      clienteId: cliente.id,
-      clienteNombre: cliente.nombre,
-      clienteTelefono: cliente.telefono,
-      clienteCorreo: cliente.correo,
-      largo: Number(formulario.largo),
-      ancho: Number(formulario.ancho),
-      alto: Number(formulario.alto),
-      cantidad: Number(formulario.cantidad),
-      materialId: material.id,
-      materialNombre: material.nombre,
-      materialTipo: material.tipo,
-      materialResistencia: material.resistencia,
-      costoBase: material.costoBase,
-      acabados: formulario.acabados || "Sin acabados especiales",
-      total,
-    });
+    try {
+      setGuardando(true);
 
-    setCotizacionGuardada(nuevaCotizacion);
+      const nuevaCotizacion = await guardarCotizacion({
+        clienteId: cliente.id,
+        clienteNombre: cliente.nombre,
+        clienteTelefono: cliente.telefono,
+        clienteCorreo: cliente.correo,
+        largo: Number(formulario.largo),
+        ancho: Number(formulario.ancho),
+        alto: Number(formulario.alto),
+        cantidad: Number(formulario.cantidad),
+        materialId: material.id,
+        materialNombre: material.nombre,
+        materialTipo: material.tipo,
+        materialResistencia: material.resistencia,
+        costoBase: material.costoBase,
+        acabados: formulario.acabados || "Sin acabados especiales",
+        total,
+      });
 
-    setFormulario({
-      clienteId: "",
-      largo: "",
-      ancho: "",
-      alto: "",
-      cantidad: "",
-      materialId: "",
-      acabados: "",
-    });
+      setCotizacionGuardada(nuevaCotizacion);
 
-    alert("Cotización guardada correctamente en el historial.");
+      setFormulario({
+        clienteId: "",
+        largo: "",
+        ancho: "",
+        alto: "",
+        cantidad: "",
+        materialId: "",
+        acabados: "",
+      });
+
+      alert("Cotización guardada correctamente en Firebase.");
+    } catch (error) {
+      console.error("Error al guardar cotización:", error);
+      alert("No se pudo guardar la cotización en Firebase.");
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const totalCalculado = calcularPrecio();
@@ -126,7 +150,9 @@ function NuevaCotizacion() {
       <div className="content-card">
         <h3>Formulario de cotización</h3>
 
-        {clientes.length === 0 ? (
+        {cargandoClientes ? (
+          <p className="empty-text">Cargando clientes desde Firebase...</p>
+        ) : clientes.length === 0 ? (
           <p className="empty-text">
             Primero registra al menos un cliente en el módulo Clientes.
           </p>
@@ -264,8 +290,12 @@ function NuevaCotizacion() {
               </div>
             </div>
 
-            <button className="primary-button" type="submit">
-              Guardar cotización
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={guardando}
+            >
+              {guardando ? "Guardando..." : "Guardar cotización"}
             </button>
           </form>
         )}

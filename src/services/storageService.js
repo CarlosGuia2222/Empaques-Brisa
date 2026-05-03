@@ -1,67 +1,101 @@
-const CLIENTES_KEY = "empaques_brisa_clientes";
-const COTIZACIONES_KEY = "empaques_brisa_cotizaciones";
-const PEDIDOS_KEY = "empaques_brisa_pedidos";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  updateDoc,
+} from "firebase/firestore";
+import { db } from "../firebase/firebaseConfig";
 
-const obtenerDatos = (key) => {
-  const datos = localStorage.getItem(key);
-  return datos ? JSON.parse(datos) : [];
-};
-
-const guardarDatos = (key, datos) => {
-  localStorage.setItem(key, JSON.stringify(datos));
-};
+const CLIENTES_COLLECTION = "clientes";
+const COTIZACIONES_COLLECTION = "cotizaciones";
+const PEDIDOS_COLLECTION = "pedidos";
 
 // CLIENTES
-export const obtenerClientes = () => {
-  return obtenerDatos(CLIENTES_KEY);
+export const obtenerClientes = async () => {
+  const consulta = query(
+    collection(db, CLIENTES_COLLECTION),
+    orderBy("fechaRegistro", "desc")
+  );
+
+  const snapshot = await getDocs(consulta);
+
+  return snapshot.docs.map((documento) => ({
+    id: documento.id,
+    ...documento.data(),
+  }));
 };
 
-export const guardarCliente = (cliente) => {
-  const clientes = obtenerClientes();
-
+export const guardarCliente = async (cliente) => {
   const nuevoCliente = {
-    id: crypto.randomUUID(),
-    fechaRegistro: new Date().toISOString(),
     ...cliente,
+    fechaRegistro: new Date().toISOString(),
   };
 
-  const clientesActualizados = [...clientes, nuevoCliente];
-  guardarDatos(CLIENTES_KEY, clientesActualizados);
+  const referencia = await addDoc(
+    collection(db, CLIENTES_COLLECTION),
+    nuevoCliente
+  );
 
-  return nuevoCliente;
+  return {
+    id: referencia.id,
+    ...nuevoCliente,
+  };
 };
 
 // COTIZACIONES
-export const obtenerCotizaciones = () => {
-  return obtenerDatos(COTIZACIONES_KEY);
+export const obtenerCotizaciones = async () => {
+  const consulta = query(
+    collection(db, COTIZACIONES_COLLECTION),
+    orderBy("fecha", "desc")
+  );
+
+  const snapshot = await getDocs(consulta);
+
+  return snapshot.docs.map((documento) => ({
+    id: documento.id,
+    ...documento.data(),
+  }));
 };
 
-export const guardarCotizacion = (cotizacion) => {
-  const cotizaciones = obtenerCotizaciones();
-
+export const guardarCotizacion = async (cotizacion) => {
   const nuevaCotizacion = {
-    id: crypto.randomUUID(),
+    ...cotizacion,
     fecha: new Date().toISOString(),
     estado: "Cotizado",
-    ...cotizacion,
   };
 
-  const cotizacionesActualizadas = [...cotizaciones, nuevaCotizacion];
-  guardarDatos(COTIZACIONES_KEY, cotizacionesActualizadas);
+  const referencia = await addDoc(
+    collection(db, COTIZACIONES_COLLECTION),
+    nuevaCotizacion
+  );
 
-  return nuevaCotizacion;
+  return {
+    id: referencia.id,
+    ...nuevaCotizacion,
+  };
 };
 
 // PEDIDOS
-export const obtenerPedidos = () => {
-  return obtenerDatos(PEDIDOS_KEY);
+export const obtenerPedidos = async () => {
+  const consulta = query(
+    collection(db, PEDIDOS_COLLECTION),
+    orderBy("fechaPedido", "desc")
+  );
+
+  const snapshot = await getDocs(consulta);
+
+  return snapshot.docs.map((documento) => ({
+    id: documento.id,
+    ...documento.data(),
+  }));
 };
 
-export const guardarPedido = (pedido) => {
-  const pedidos = obtenerPedidos();
-
+export const guardarPedido = async (pedido) => {
   const nuevoPedido = {
-    id: crypto.randomUUID(),
+    ...pedido,
     fechaPedido: new Date().toISOString(),
     estadoPedido: "Recibido",
     actividades: [
@@ -70,34 +104,45 @@ export const guardarPedido = (pedido) => {
         descripcion: "Pedido registrado en el sistema",
       },
     ],
-    ...pedido,
   };
 
-  const pedidosActualizados = [...pedidos, nuevoPedido];
-  guardarDatos(PEDIDOS_KEY, pedidosActualizados);
+  const referencia = await addDoc(
+    collection(db, PEDIDOS_COLLECTION),
+    nuevoPedido
+  );
 
-  return nuevoPedido;
+  return {
+    id: referencia.id,
+    ...nuevoPedido,
+  };
 };
 
-export const actualizarEstadoPedido = (idPedido, nuevoEstado) => {
-  const pedidos = obtenerPedidos();
+export const actualizarEstadoPedido = async (idPedido, nuevoEstado) => {
+  const pedidos = await obtenerPedidos();
+  const pedidoActual = pedidos.find((pedido) => pedido.id === idPedido);
 
-  const pedidosActualizados = pedidos.map((pedido) => {
-    if (pedido.id !== idPedido) return pedido;
+  if (!pedidoActual) {
+    throw new Error("No se encontró el pedido.");
+  }
 
-    return {
-      ...pedido,
-      estadoPedido: nuevoEstado,
-      actividades: [
-        ...(pedido.actividades || []),
-        {
-          fecha: new Date().toISOString(),
-          descripcion: `Estado actualizado a: ${nuevoEstado}`,
-        },
-      ],
-    };
+  const nuevasActividades = [
+    ...(pedidoActual.actividades || []),
+    {
+      fecha: new Date().toISOString(),
+      descripcion: `Estado actualizado a: ${nuevoEstado}`,
+    },
+  ];
+
+  const referenciaPedido = doc(db, PEDIDOS_COLLECTION, idPedido);
+
+  await updateDoc(referenciaPedido, {
+    estadoPedido: nuevoEstado,
+    actividades: nuevasActividades,
   });
 
-  guardarDatos(PEDIDOS_KEY, pedidosActualizados);
-  return pedidosActualizados;
+  return {
+    ...pedidoActual,
+    estadoPedido: nuevoEstado,
+    actividades: nuevasActividades,
+  };
 };
